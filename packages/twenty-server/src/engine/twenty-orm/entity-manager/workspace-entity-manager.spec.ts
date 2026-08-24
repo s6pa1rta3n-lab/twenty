@@ -113,6 +113,7 @@ describe('WorkspaceEntityManager', () => {
       fieldIds: ['field-id'],
       indexMetadataIds: [],
       searchFieldMetadataIds: [],
+      targetCommandMenuItemIds: [],
       objectPermissionIds: [],
       fieldPermissionIds: [],
       viewIds: [],
@@ -140,6 +141,7 @@ describe('WorkspaceEntityManager', () => {
       pageLayoutUniversalIdentifiers: [],
       indexMetadataUniversalIdentifiers: [],
       searchFieldMetadataUniversalIdentifiers: [],
+      targetCommandMenuItemUniversalIdentifiers: [],
       labelIdentifierFieldMetadataUniversalIdentifier: null,
       imageIdentifierFieldMetadataUniversalIdentifier: null,
     };
