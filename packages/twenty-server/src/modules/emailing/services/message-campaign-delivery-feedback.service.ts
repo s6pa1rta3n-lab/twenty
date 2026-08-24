@@ -6,7 +6,7 @@ import { type CampaignMessageDeliveryStatus } from 'src/engine/core-modules/emai
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { listDeliveryStatusesOverridableBy } from 'src/modules/emailing/utils/list-delivery-statuses-overridable-by.util';
-import { MessageCampaignLifecycleService } from 'src/modules/emailing/services/message-campaign-lifecycle.service';
+import { MessageCampaignStatisticsService } from 'src/modules/emailing/services/message-campaign-statistics.service';
 import { MessageWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message.workspace-entity';
 import { isDefined } from 'twenty-shared/utils';
 
@@ -14,7 +14,7 @@ import { isDefined } from 'twenty-shared/utils';
 export class MessageCampaignDeliveryFeedbackService {
   constructor(
     private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
-    private readonly messageCampaignLifecycleService: MessageCampaignLifecycleService,
+    private readonly messageCampaignStatisticsService: MessageCampaignStatisticsService,
   ) {}
 
   async recordDeliveryStatusByProviderMessageId({
@@ -54,7 +54,7 @@ export class MessageCampaignDeliveryFeedbackService {
         return;
       }
 
-      await this.messageCampaignLifecycleService.scheduleStatsRefresh({
+      await this.messageCampaignStatisticsService.scheduleRefresh({
         workspaceId,
         campaignId: message.messageCampaignId,
       });

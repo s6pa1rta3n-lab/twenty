@@ -6,22 +6,11 @@ import chunk from 'lodash.chunk';
 import { QUERY_MAX_RECORDS } from 'twenty-shared/constants';
 import { In, LessThan } from 'typeorm';
 
-import {
-  CAMPAIGN_MESSAGE_DELIVERY_STATUS,
-  CAMPAIGN_STATS_REFRESH_DELAY_MS,
-  REFRESH_CAMPAIGN_STATS_JOB,
-} from 'src/engine/core-modules/emailing-domain/constants/campaign.constant';
+import { CAMPAIGN_MESSAGE_DELIVERY_STATUS } from 'src/engine/core-modules/emailing-domain/constants/campaign.constant';
 import {
   EmailingDomainException,
   EmailingDomainExceptionCode,
 } from 'src/engine/core-modules/emailing-domain/exceptions/emailing-domain.exception';
-import { type RefreshCampaignStatsJobData } from 'src/engine/core-modules/emailing-domain/types/refresh-campaign-stats-job-data.type';
-import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
-import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
-import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
-import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
-import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
-import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
 import { UserRoleService } from 'src/engine/metadata-modules/user-role/user-role.service';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
@@ -47,10 +36,6 @@ export class MessageCampaignLifecycleService {
     private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
     private readonly userRoleService: UserRoleService,
     private readonly messageCampaignStatisticsService: MessageCampaignStatisticsService,
-    @InjectMessageQueue(MessageQueue.campaignQueue)
-    private readonly messageQueueService: MessageQueueService,
-    @InjectCacheStorage(CacheStorageNamespace.ModuleEmailing)
-    private readonly cacheStorageService: CacheStorageService,
   ) {}
 
   async transitionCampaignStatus({
@@ -118,7 +103,10 @@ export class MessageCampaignLifecycleService {
       toStatus: CAMPAIGN_MESSAGE_DELIVERY_STATUS.SKIPPED,
     });
 
-    await this.scheduleStatsRefresh({ workspaceId, campaignId });
+    await this.messageCampaignStatisticsService.scheduleRefresh({
+      workspaceId,
+      campaignId,
+    });
 
     return { campaignId, canceledMessageCount };
   }
@@ -248,29 +236,9 @@ export class MessageCampaignLifecycleService {
       { status: terminalStatus, sentAt: new Date() },
     );
 
-    await this.scheduleStatsRefresh({ workspaceId, campaignId });
-  }
-
-  async scheduleStatsRefresh({
-    workspaceId,
-    campaignId,
-  }: {
-    workspaceId: string;
-    campaignId: string;
-  }): Promise<void> {
-    const acquired = await this.cacheStorageService.acquireLock(
-      `campaign-stats-refresh:${workspaceId}:${campaignId}`,
-      CAMPAIGN_STATS_REFRESH_DELAY_MS,
-    );
-
-    if (!acquired) {
-      return;
-    }
-
-    await this.messageQueueService.add<RefreshCampaignStatsJobData>(
-      REFRESH_CAMPAIGN_STATS_JOB,
-      { workspaceId, campaignId },
-      { delay: CAMPAIGN_STATS_REFRESH_DELAY_MS },
-    );
+    await this.messageCampaignStatisticsService.scheduleRefresh({
+      workspaceId,
+      campaignId,
+    });
   }
 }

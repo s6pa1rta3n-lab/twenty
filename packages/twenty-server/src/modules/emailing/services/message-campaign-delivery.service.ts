@@ -9,6 +9,7 @@ import { type SendCampaignEmailJobData } from 'src/engine/core-modules/emailing-
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import type { WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace.repository';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
+import { CampaignSendingReputationService } from 'src/modules/emailing/services/campaign-sending-reputation.service';
 import { CampaignVariableService } from 'src/modules/emailing/services/campaign-variable.service';
 import { EmailBillingService } from 'src/modules/emailing/services/email-billing.service';
 import { EmailingDomainSenderService } from 'src/modules/emailing/services/emailing-domain-sender.service';
@@ -40,6 +41,7 @@ export class MessageCampaignDeliveryService {
     private readonly emailBillingService: EmailBillingService,
     private readonly campaignVariableService: CampaignVariableService,
     private readonly messageCampaignLifecycleService: MessageCampaignLifecycleService,
+    private readonly campaignSendingReputationService: CampaignSendingReputationService,
   ) {}
 
   async processSendJob(data: SendCampaignEmailJobData): Promise<void> {
@@ -123,10 +125,11 @@ export class MessageCampaignDeliveryService {
     });
 
     if (campaignAfterClaim?.status === MessageCampaignStatus.CANCELED) {
-      await messageRepository.update(
-        this.buildClaimedMessageCriteria({ messageId, claimedAt }),
-        { deliveryStatus: CAMPAIGN_MESSAGE_DELIVERY_STATUS.SKIPPED },
-      );
+      await this.skipClaimedMessage({
+        messageRepository,
+        messageId,
+        claimedAt,
+      });
 
       return null;
     }
@@ -177,10 +180,30 @@ export class MessageCampaignDeliveryService {
       await this.emailBillingService.resolveEmailCreditContext(workspaceId);
 
     if (!hasCredits) {
-      await messageRepository.update(
-        this.buildClaimedMessageCriteria({ messageId, claimedAt }),
-        { deliveryStatus: CAMPAIGN_MESSAGE_DELIVERY_STATUS.SKIPPED },
+      await this.skipClaimedMessage({
+        messageRepository,
+        messageId,
+        claimedAt,
+      });
+
+      return;
+    }
+
+    const isSendingBlocked =
+      await this.campaignSendingReputationService.isSendingBlocked({
+        workspaceId,
+      });
+
+    if (isSendingBlocked) {
+      this.logger.warn(
+        `Campaign ${campaignId} skipped message ${messageId} because workspace ${workspaceId} exceeded its sending reputation thresholds mid-campaign`,
       );
+
+      await this.skipClaimedMessage({
+        messageRepository,
+        messageId,
+        claimedAt,
+      });
 
       return;
     }
@@ -339,6 +362,21 @@ export class MessageCampaignDeliveryService {
     if (shouldRetry) {
       throw error;
     }
+  }
+
+  private async skipClaimedMessage({
+    messageRepository,
+    messageId,
+    claimedAt,
+  }: {
+    messageRepository: MessageRepository;
+    messageId: string;
+    claimedAt: string;
+  }): Promise<void> {
+    await messageRepository.update(
+      this.buildClaimedMessageCriteria({ messageId, claimedAt }),
+      { deliveryStatus: CAMPAIGN_MESSAGE_DELIVERY_STATUS.SKIPPED },
+    );
   }
 
   private async releaseClaimAfterUnexpectedFailure({
