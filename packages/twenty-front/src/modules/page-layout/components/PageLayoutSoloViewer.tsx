@@ -1,13 +1,10 @@
 import { type PageLayoutWidget } from '@/page-layout/types/PageLayoutWidget';
 import { WidgetRenderer } from '@/page-layout/widgets/components/WidgetRenderer';
-import { getWidgetHeightMode } from '@/page-layout/widgets/utils/getWidgetHeightMode';
 import { styled } from '@linaria/react';
 import { isDefined } from 'twenty-shared/utils';
 
-const StyledSoloContainer = styled.div<{ isFillingWidget: boolean }>`
+const StyledSoloContainer = styled.div`
   display: grid;
-  grid-template-rows: ${({ isFillingWidget }) =>
-    isFillingWidget ? 'minmax(0, 1fr)' : 'auto'};
   height: 100%;
 `;
 
@@ -25,9 +22,7 @@ export const PageLayoutSoloViewer = ({
   }
 
   return (
-    <StyledSoloContainer
-      isFillingWidget={getWidgetHeightMode({ widget }) === 'filling'}
-    >
+    <StyledSoloContainer>
       <WidgetRenderer widget={widget} />
     </StyledSoloContainer>
   );
